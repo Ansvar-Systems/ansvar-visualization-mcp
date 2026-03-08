@@ -63,6 +63,24 @@ const HANDLERS: Record<string, Handler> = {
   list_available_diagram_types: listAvailableTypes,
 };
 
+/**
+ * Validate required fields against the tool's inputSchema.
+ * Returns an error message if validation fails, null if OK.
+ */
+function validateRequired(toolName: string, args: Record<string, unknown>): string | null {
+  const tool = TOOL_DEFINITIONS.find((t) => t.name === toolName);
+  if (!tool) return null;
+
+  const schema = tool.inputSchema as { required?: string[]; properties?: Record<string, unknown> };
+  const required = schema.required ?? [];
+
+  const missing = required.filter((field) => args[field] === undefined || args[field] === null);
+  if (missing.length > 0) {
+    return `Missing required field(s): ${missing.join(", ")}`;
+  }
+  return null;
+}
+
 export function dispatch(
   toolName: string,
   args: Record<string, unknown>
@@ -71,6 +89,15 @@ export function dispatch(
   if (!handler) {
     return {
       content: [{ type: "text", text: `Unknown tool: ${toolName}` }],
+      isError: true,
+    };
+  }
+
+  // Validate required fields before calling handler
+  const validationError = validateRequired(toolName, args);
+  if (validationError) {
+    return {
+      content: [{ type: "text", text: `Validation error: ${validationError}` }],
       isError: true,
     };
   }

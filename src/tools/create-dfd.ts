@@ -8,7 +8,7 @@
  *   [(...)] data stores
  *   ==> trust boundary crossings
  */
-import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import { sanitizeLabel, sanitizeId, mermaidBlock, checkDuplicateIds } from "../sanitize.js";
 
 export interface DfdZone {
   id: string;
@@ -46,6 +46,13 @@ const SHAPES: Record<string, [string, string]> = {
 };
 
 export function createDfd(input: DfdInput): string {
+  if (input.nodes.length === 0) {
+    return "**Error:** DFD requires at least one node.";
+  }
+
+  const dupeError = checkDuplicateIds(input.nodes.map((n) => n.id));
+  if (dupeError) return `**Error:** ${dupeError}`;
+
   const dir = input.direction ?? "LR";
   const lines: string[] = [`flowchart ${dir}`];
 

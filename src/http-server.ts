@@ -35,6 +35,7 @@ function createServer(): Server {
 }
 
 const app = express();
+app.use(express.json());
 
 app.post("/mcp", async (req, res) => {
   const server = createServer();

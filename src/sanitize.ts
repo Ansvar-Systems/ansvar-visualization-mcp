@@ -35,3 +35,23 @@ export function truncate(s: string, max: number): string {
 export function mermaidBlock(content: string): string {
   return "```mermaid\n" + content + "\n```";
 }
+
+/**
+ * Check for duplicate IDs after sanitization.
+ * Returns an error string if duplicates found, or null if clean.
+ */
+export function checkDuplicateIds(ids: string[]): string | null {
+  const sanitized = ids.map(sanitizeId);
+  const seen = new Set<string>();
+  const dupes: string[] = [];
+  for (let i = 0; i < sanitized.length; i++) {
+    if (seen.has(sanitized[i])) {
+      dupes.push(`"${ids[i]}" (sanitized: "${sanitized[i]}")`);
+    }
+    seen.add(sanitized[i]);
+  }
+  if (dupes.length > 0) {
+    return `Duplicate node IDs after sanitization: ${dupes.join(", ")}. Use distinct alphanumeric IDs.`;
+  }
+  return null;
+}

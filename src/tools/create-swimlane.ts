@@ -29,8 +29,8 @@ export interface SwimlaneInput {
 const STEP_SHAPES: Record<string, [string, string]> = {
   action: ["[", "]"],
   decision: ["{", "}"],
-  start: ["([", "])"],
-  end: ["([", "])"],
+  start: ["([", "])"],   // stadium shape (rounded)
+  end: ["[[", "]]"],     // subroutine shape (double border) — visually distinct from start
 };
 
 export function createSwimlane(input: SwimlaneInput): string {

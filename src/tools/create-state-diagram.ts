@@ -29,9 +29,26 @@ export interface StateDiagramInput {
 export function createStateDiagram(input: StateDiagramInput): string {
   const lines: string[] = ["stateDiagram-v2"];
 
-  // Render states
+  // Auto-add [*] transitions for start/end typed states
+  const startStates = input.states.filter((s) => s.type === "start");
+  const endStates = input.states.filter((s) => s.type === "end");
+  for (const s of startStates) {
+    // Add [*] → state transition if not already present
+    const hasTransition = input.transitions.some((t) => t.from === "[*]" && t.to === s.id);
+    if (!hasTransition) {
+      input.transitions = [{ from: "[*]", to: s.id }, ...input.transitions];
+    }
+  }
+  for (const s of endStates) {
+    const hasTransition = input.transitions.some((t) => t.to === "[*]" && t.from === s.id);
+    if (!hasTransition) {
+      input.transitions = [...input.transitions, { from: s.id, to: "[*]" }];
+    }
+  }
+
+  // Render states (skip start/end — Mermaid uses [*] pseudo-state)
   for (const state of input.states) {
-    if (state.type === "start" || state.type === "end") continue; // handled via [*]
+    if (state.type === "start" || state.type === "end") continue;
 
     const id = sanitizeId(state.id);
     const label = sanitizeLabel(state.label);

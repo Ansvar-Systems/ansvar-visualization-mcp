@@ -5,7 +5,7 @@
  * attack steps. Mitigated nodes styled differently. Maps directly
  * to threat modeling workflow output.
  */
-import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import { sanitizeLabel, sanitizeId, mermaidBlock, checkDuplicateIds } from "../sanitize.js";
 
 export interface AttackNode {
   id: string;
@@ -26,11 +26,21 @@ export interface AttackTreeInput {
 export function createAttackTree(input: AttackTreeInput): string {
   const lines: string[] = ["flowchart TD"];
 
-  // Find the root node (parent === null)
-  const root = input.nodes.find((n) => n.parent === null);
+  // Find the root node (parent === null), or auto-create from `goal`
+  let root = input.nodes.find((n) => n.parent === null);
   if (!root) {
-    return "**Error:** No root node found (a node with `parent: null` is required).";
+    // Auto-create root from the `goal` field
+    root = { id: "attack_goal", label: input.goal, parent: null, type: "goal" };
+    const existingIds = new Set(input.nodes.map((n) => n.id));
+    input.nodes = [root, ...input.nodes.map((n) => ({
+      ...n,
+      // Remap orphaned parents (null, undefined, or referencing non-existent node) to root
+      parent: (n.parent && existingIds.has(n.parent)) ? n.parent : "attack_goal",
+    }))];
   }
+
+  const dupeError = checkDuplicateIds(input.nodes.map((n) => n.id));
+  if (dupeError) return `**Error:** ${dupeError}`;
 
   // Build parent → children map
   const childMap = new Map<string, AttackNode[]>();
