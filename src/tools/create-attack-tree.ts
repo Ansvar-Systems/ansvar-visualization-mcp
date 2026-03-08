@@ -61,8 +61,9 @@ export function createAttackTree(input: AttackTreeInput): string {
     if (type === "goal") {
       lines.push(`  ${id}{{"${label}"}}`);
     } else if (node.gate === "AND" || node.gate === "OR") {
-      // Gate nodes get diamond shape
-      lines.push(`  ${id}{"${node.gate}: ${label}"}`);
+      // Gate nodes get diamond shape — strip gate prefix from label if already present
+      const gateLabel = label.startsWith(`${node.gate}: `) ? label : `${node.gate}: ${label}`;
+      lines.push(`  ${id}{"${gateLabel}"}`);
     } else {
       lines.push(`  ${id}["${label}"]`);
     }

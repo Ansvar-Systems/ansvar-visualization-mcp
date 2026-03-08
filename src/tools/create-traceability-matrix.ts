@@ -28,6 +28,7 @@ export interface TraceabilityInput {
 
 const STATUS_INDICATORS: Record<string, string> = {
   met: "\u2705",           // green check
+  covered: "\u2705",      // alias — LLMs frequently use "covered" instead of "met"
   partial: "\u{1F7E1}",   // yellow circle
   gap: "\u274C",           // red X
   "not-applicable": "\u2796", // heavy minus
@@ -138,7 +139,7 @@ export const CREATE_TRACEABILITY_MATRIX_TOOL = {
             requirement: { type: "string" },
             control: { type: "string" },
             evidence: { type: "string" },
-            status: { type: "string", enum: ["met", "partial", "gap", "not-applicable"] },
+            status: { type: "string", enum: ["met", "covered", "partial", "gap", "not-applicable"] },
           },
           required: ["requirement", "control", "status"],
         },

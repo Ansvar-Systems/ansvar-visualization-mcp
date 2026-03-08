@@ -8,7 +8,7 @@ import { escapeCell } from "../sanitize.js";
 export interface ComparisonTableInput {
   title?: string;
   columns: string[];
-  rows: Record<string, string>[];
+  rows: (Record<string, string> | string[])[];
 }
 
 export function createComparisonTable(input: ComparisonTableInput): string {
@@ -21,9 +21,14 @@ export function createComparisonTable(input: ComparisonTableInput): string {
   parts.push("| " + input.columns.map((c) => `**${escapeCell(c)}**`).join(" | ") + " |");
   parts.push("| " + input.columns.map(() => "---").join(" | ") + " |");
 
-  // Rows
+  // Rows — accept both object (keyed by column name) and array formats
   for (const row of input.rows) {
-    const cells = input.columns.map((col) => escapeCell(row[col] ?? ""));
+    let cells: string[];
+    if (Array.isArray(row)) {
+      cells = input.columns.map((_, i) => escapeCell(row[i] ?? ""));
+    } else {
+      cells = input.columns.map((col) => escapeCell(row[col] ?? ""));
+    }
     parts.push("| " + cells.join(" | ") + " |");
   }
 
