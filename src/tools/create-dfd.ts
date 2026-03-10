@@ -73,7 +73,7 @@ export function createDfd(input: DfdInput): string {
     const nodes = zoneNodes.get(zone.id) ?? [];
     for (const node of nodes) {
       const [left, right] = SHAPES[node.type] ?? SHAPES.process;
-      lines.push(`    ${sanitizeId(node.id)}${left}${sanitizeLabel(node.label)}${right}`);
+      lines.push(`    ${sanitizeId(node.id)}${left}"${sanitizeLabel(node.label)}"${right}`);
     }
 
     lines.push("  end");
@@ -84,7 +84,7 @@ export function createDfd(input: DfdInput): string {
   for (const node of input.nodes) {
     if (!zonedIds.has(node.zone)) {
       const [left, right] = SHAPES[node.type] ?? SHAPES.process;
-      lines.push(`  ${sanitizeId(node.id)}${left}${sanitizeLabel(node.label)}${right}`);
+      lines.push(`  ${sanitizeId(node.id)}${left}"${sanitizeLabel(node.label)}"${right}`);
     }
   }
 
@@ -94,7 +94,7 @@ export function createDfd(input: DfdInput): string {
     const dst = sanitizeId(edge.to);
     const arrow = edge.crosses_boundary ? "==>" : "-->";
     if (edge.label) {
-      lines.push(`  ${src} ${arrow}|${sanitizeLabel(edge.label)}| ${dst}`);
+      lines.push(`  ${src} ${arrow}|"${sanitizeLabel(edge.label)}"| ${dst}`);
     } else {
       lines.push(`  ${src} ${arrow} ${dst}`);
     }

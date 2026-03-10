@@ -53,7 +53,7 @@ export function createSwimlane(input: SwimlaneInput): string {
     const steps = laneSteps.get(lane.id) ?? [];
     for (const step of steps) {
       const [left, right] = STEP_SHAPES[step.type ?? "action"] ?? STEP_SHAPES.action;
-      lines.push(`    ${sanitizeId(step.id)}${left}${sanitizeLabel(step.label)}${right}`);
+      lines.push(`    ${sanitizeId(step.id)}${left}"${sanitizeLabel(step.label)}"${right}`);
     }
 
     lines.push("  end");
