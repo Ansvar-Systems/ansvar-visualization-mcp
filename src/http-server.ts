@@ -28,7 +28,7 @@ function createServer(): Server {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    return dispatch(name, args ?? {});
+    return await dispatch(name, args ?? {});
   });
 
   return server;

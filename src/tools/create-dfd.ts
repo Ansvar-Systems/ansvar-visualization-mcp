@@ -8,7 +8,8 @@
  *   [(...)] data stores
  *   ==> trust boundary crossings
  */
-import { sanitizeLabel, sanitizeId, mermaidBlock, checkDuplicateIds } from "../sanitize.js";
+import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import { assertNonEmptyArray, assertReferencesExist, assertUniqueIds } from "./validation.js";
 
 export interface DfdZone {
   id: string;
@@ -46,12 +47,21 @@ const SHAPES: Record<string, [string, string]> = {
 };
 
 export function createDfd(input: DfdInput): string {
-  if (input.nodes.length === 0) {
-    return "**Error:** DFD requires at least one node.";
-  }
+  assertNonEmptyArray("zones", input.zones);
+  assertNonEmptyArray("nodes", input.nodes);
+  assertUniqueIds("zones", input.zones.map((zone) => zone.id));
+  assertUniqueIds("nodes", input.nodes.map((node) => node.id));
 
-  const dupeError = checkDuplicateIds(input.nodes.map((n) => n.id));
-  if (dupeError) return `**Error:** ${dupeError}`;
+  const zoneIds = new Set(input.zones.map((zone) => zone.id));
+  assertReferencesExist("DFD node zone", input.nodes.map((node) => node.zone), zoneIds, "zone");
+
+  const nodeIds = new Set(input.nodes.map((node) => node.id));
+  assertReferencesExist(
+    "DFD edge",
+    input.edges.flatMap((edge) => [edge.from, edge.to]),
+    nodeIds,
+    "node"
+  );
 
   const dir = input.direction ?? "LR";
   const lines: string[] = [`flowchart ${dir}`];
@@ -125,7 +135,7 @@ export function createDfd(input: DfdInput): string {
 export const CREATE_DFD_TOOL = {
   name: "create_dfd",
   description:
-    "Create a Data Flow Diagram with trust zones, boundary crossings, and typed nodes (external entities, processes, data stores). Returns validated Mermaid flowchart.",
+    "Create a Data Flow Diagram with trust zones, boundary crossings, and typed nodes (external entities, processes, data stores). Returns a Mermaid flowchart.",
   inputSchema: {
     type: "object" as const,
     properties: {

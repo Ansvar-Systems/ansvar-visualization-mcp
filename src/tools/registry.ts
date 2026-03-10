@@ -19,6 +19,7 @@ import { createComparisonMatrix, CREATE_COMPARISON_MATRIX_TOOL } from "./create-
 import { createRegulatoryMapping, CREATE_REGULATORY_MAPPING_TOOL } from "./create-regulatory-mapping.js";
 import { validateAndFixMermaid, VALIDATE_MERMAID_TOOL } from "./validate-mermaid.js";
 import { listAvailableTypes, LIST_TYPES_TOOL } from "./list-types.js";
+import { extractMermaidBlocks, validateMermaidOutput } from "./mermaid-parser.js";
 
 // All tool definitions for ListTools response
 export const TOOL_DEFINITIONS: Tool[] = [
@@ -42,7 +43,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
 
 // Dispatch function: tool name → handler
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Handler = (args: any) => string;
+type Handler = (args: any) => string | Promise<string>;
 
 const HANDLERS: Record<string, Handler> = {
   create_dfd: createDfd,
@@ -63,6 +64,18 @@ const HANDLERS: Record<string, Handler> = {
   list_available_diagram_types: listAvailableTypes,
 };
 
+const TOOLS_WITH_MERMAID_OUTPUT = new Set([
+  "create_dfd",
+  "create_sequence",
+  "create_hierarchy",
+  "create_attack_tree",
+  "create_swimlane",
+  "create_state_diagram",
+  "create_timeline",
+  "create_radar_chart",
+  "create_regulatory_mapping",
+]);
+
 /**
  * Validate required fields against the tool's inputSchema.
  * Returns an error message if validation fails, null if OK.
@@ -81,14 +94,21 @@ function validateRequired(toolName: string, args: Record<string, unknown>): stri
   return null;
 }
 
-export function dispatch(
+export async function dispatch(
   toolName: string,
   args: Record<string, unknown>
-): { content: Array<{ type: "text"; text: string }>; isError?: boolean } {
+): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const handler = HANDLERS[toolName];
   if (!handler) {
     return {
       content: [{ type: "text", text: `Unknown tool: ${toolName}` }],
+      isError: true,
+    };
+  }
+
+  if (args === null || typeof args !== "object" || Array.isArray(args)) {
+    return {
+      content: [{ type: "text", text: "Validation error: tool arguments must be a JSON object." }],
       isError: true,
     };
   }
@@ -103,7 +123,14 @@ export function dispatch(
   }
 
   try {
-    const result = handler(args);
+    const result = await handler(args);
+    if (TOOLS_WITH_MERMAID_OUTPUT.has(toolName)) {
+      const blocks = extractMermaidBlocks(result);
+      if (blocks.length === 0) {
+        throw new Error(`Tool '${toolName}' did not produce a Mermaid fenced block.`);
+      }
+      await validateMermaidOutput(result);
+    }
     return { content: [{ type: "text", text: result }] };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

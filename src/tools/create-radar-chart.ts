@@ -9,6 +9,7 @@
  * ASVS level coverage, framework readiness.
  */
 import { escapeCell, mermaidBlock, sanitizeLabel } from "../sanitize.js";
+import { assertFiniteNumber, assertNonEmptyArray } from "./validation.js";
 
 export interface RadarDimension {
   name: string;
@@ -32,6 +33,24 @@ function renderBar(value: number, max: number, width: number = 10): string {
 
 export function createRadarChart(input: RadarChartInput): string {
   const max = input.scale_max ?? 5;
+  assertFiniteNumber("scale_max", max);
+  if (max <= 0) {
+    throw new Error("scale_max must be greater than 0.");
+  }
+  assertNonEmptyArray("dimensions", input.dimensions);
+  for (const dimension of input.dimensions) {
+    assertFiniteNumber(`dimension ${dimension.name} current`, dimension.current);
+    if (dimension.current < 0 || dimension.current > max) {
+      throw new Error(`dimension ${dimension.name} current must be between 0 and ${max}.`);
+    }
+    if (dimension.target !== undefined) {
+      assertFiniteNumber(`dimension ${dimension.name} target`, dimension.target);
+      if (dimension.target < 0 || dimension.target > max) {
+        throw new Error(`dimension ${dimension.name} target must be between 0 and ${max}.`);
+      }
+    }
+  }
+
   const parts: string[] = [];
 
   if (input.title) {

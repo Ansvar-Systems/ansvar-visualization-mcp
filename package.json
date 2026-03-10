@@ -1,18 +1,21 @@
 {
   "name": "@ansvar/visualization-mcp",
   "version": "1.0.0",
-  "description": "Domain-aware visualization tools for security and compliance — DFDs, attack trees, risk matrices, traceability matrices. Outputs validated Mermaid and Markdown.",
+  "description": "Domain-aware visualization tools for security and compliance — DFDs, attack trees, risk matrices, traceability matrices. Outputs structured Mermaid and Markdown with label sanitization and tool-side validation.",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/http-server.js",
     "dev": "tsx src/http-server.ts",
+    "test": "node --import tsx --test src/tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "jsdom": "^26.1.0",
+    "mermaid": "^11.13.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

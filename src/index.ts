@@ -2,7 +2,7 @@
  * Ansvar Visualization MCP — stdio transport.
  *
  * Domain-aware visualization tools for security and compliance.
- * Outputs validated Mermaid and Markdown.
+ * Outputs structured Mermaid and Markdown with label sanitization and tool-side validation.
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -24,7 +24,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  return dispatch(name, args ?? {});
+  return await dispatch(name, args ?? {});
 });
 
 async function main() {

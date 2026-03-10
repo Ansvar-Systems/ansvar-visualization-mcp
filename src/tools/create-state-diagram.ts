@@ -5,6 +5,7 @@
  * asset states, incident response stages, document workflows.
  */
 import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import { assertNonEmptyArray, assertReferencesExist, assertUniqueIds } from "./validation.js";
 
 export interface StateNode {
   id: string;
@@ -27,6 +28,19 @@ export interface StateDiagramInput {
 }
 
 export function createStateDiagram(input: StateDiagramInput): string {
+  assertNonEmptyArray("states", input.states);
+  assertUniqueIds("states", input.states.map((state) => state.id));
+
+  const stateIds = new Set(input.states.map((state) => state.id));
+  assertReferencesExist(
+    "State transition",
+    input.transitions
+      .flatMap((transition) => [transition.from, transition.to])
+      .filter((id) => id !== "[*]"),
+    stateIds,
+    "state"
+  );
+
   const lines: string[] = ["stateDiagram-v2"];
 
   // Auto-add [*] transitions for start/end typed states
@@ -95,7 +109,7 @@ export function createStateDiagram(input: StateDiagramInput): string {
 export const CREATE_STATE_DIAGRAM_TOOL = {
   name: "create_state_diagram",
   description:
-    "Create a state machine diagram for lifecycle management — compliance status, document workflow, asset states, incident stages. Supports choice/fork/join nodes and guarded transitions. Returns validated Mermaid stateDiagram-v2.",
+    "Create a state machine diagram for lifecycle management — compliance status, document workflow, asset states, incident stages. Supports choice/fork/join nodes and guarded transitions. Returns a Mermaid stateDiagram-v2.",
   inputSchema: {
     type: "object" as const,
     properties: {

@@ -4,6 +4,7 @@
  * Framework comparisons, regulation overlaps, vendor feature matrices.
  */
 import { escapeCell } from "../sanitize.js";
+import { assertNonEmptyArray } from "./validation.js";
 
 export interface ComparisonTableInput {
   title?: string;
@@ -12,6 +13,9 @@ export interface ComparisonTableInput {
 }
 
 export function createComparisonTable(input: ComparisonTableInput): string {
+  assertNonEmptyArray("columns", input.columns);
+  assertNonEmptyArray("rows", input.rows);
+
   const parts: string[] = [];
   if (input.title) {
     parts.push(`### ${input.title}\n`);
@@ -25,6 +29,9 @@ export function createComparisonTable(input: ComparisonTableInput): string {
   for (const row of input.rows) {
     let cells: string[];
     if (Array.isArray(row)) {
+      if (row.length !== input.columns.length) {
+        throw new Error("Array-based comparison rows must match the number of columns.");
+      }
       cells = input.columns.map((_, i) => escapeCell(row[i] ?? ""));
     } else {
       cells = input.columns.map((col) => escapeCell(row[col] ?? ""));

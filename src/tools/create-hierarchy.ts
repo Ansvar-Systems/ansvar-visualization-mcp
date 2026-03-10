@@ -5,6 +5,7 @@
  * ISO 27001 clause structure, regulation chapter breakdowns.
  */
 import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import { assertUniqueIds } from "./validation.js";
 
 export interface HierarchyNode {
   id: string;
@@ -37,7 +38,17 @@ function renderNode(node: HierarchyNode, lines: string[], depth: number): void {
   }
 }
 
+function collectIds(node: HierarchyNode, ids: string[] = []): string[] {
+  ids.push(node.id);
+  for (const child of node.children ?? []) {
+    collectIds(child, ids);
+  }
+  return ids;
+}
+
 export function createHierarchy(input: HierarchyInput): string {
+  assertUniqueIds("hierarchy nodes", collectIds(input.root));
+
   const dir = input.direction ?? "TD";
   const lines: string[] = [`flowchart ${dir}`];
 
@@ -55,7 +66,7 @@ export function createHierarchy(input: HierarchyInput): string {
 export const CREATE_HIERARCHY_TOOL = {
   name: "create_hierarchy",
   description:
-    "Create a hierarchy/tree diagram from nested nodes. Use for framework decomposition, control trees, regulation structure, org charts. Returns validated Mermaid flowchart.",
+    "Create a hierarchy/tree diagram from nested nodes. Use for framework decomposition, control trees, regulation structure, org charts. Returns a Mermaid flowchart.",
   inputSchema: {
     type: "object" as const,
     properties: {

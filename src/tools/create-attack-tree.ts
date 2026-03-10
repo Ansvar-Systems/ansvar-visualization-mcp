@@ -5,7 +5,8 @@
  * attack steps. Mitigated nodes styled differently. Maps directly
  * to threat modeling workflow output.
  */
-import { sanitizeLabel, sanitizeId, mermaidBlock, checkDuplicateIds } from "../sanitize.js";
+import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import { assertReferencesExist, assertUniqueIds } from "./validation.js";
 
 export interface AttackNode {
   id: string;
@@ -27,24 +28,26 @@ export function createAttackTree(input: AttackTreeInput): string {
   const lines: string[] = ["flowchart TD"];
 
   // Find the root node (parent === null), or auto-create from `goal`
-  let root = input.nodes.find((n) => n.parent === null);
+  let nodes = input.nodes;
+  let root = nodes.find((n) => n.parent === null);
   if (!root) {
     // Auto-create root from the `goal` field
     root = { id: "attack_goal", label: input.goal, parent: null, type: "goal" };
-    const existingIds = new Set(input.nodes.map((n) => n.id));
-    input.nodes = [root, ...input.nodes.map((n) => ({
-      ...n,
-      // Remap orphaned parents (null, undefined, or referencing non-existent node) to root
-      parent: (n.parent && existingIds.has(n.parent)) ? n.parent : "attack_goal",
-    }))];
+    nodes = [root, ...nodes.map((node) => (node.parent === null ? { ...node, parent: "attack_goal" } : node))];
   }
 
-  const dupeError = checkDuplicateIds(input.nodes.map((n) => n.id));
-  if (dupeError) return `**Error:** ${dupeError}`;
+  assertUniqueIds("attack tree nodes", nodes.map((node) => node.id));
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  assertReferencesExist(
+    "Attack tree parent",
+    nodes.filter((node) => node.parent !== null).map((node) => node.parent!),
+    nodeIds,
+    "node"
+  );
 
   // Build parent → children map
   const childMap = new Map<string, AttackNode[]>();
-  for (const node of input.nodes) {
+  for (const node of nodes) {
     if (node.parent !== null) {
       const siblings = childMap.get(node.parent) ?? [];
       siblings.push(node);
@@ -53,7 +56,7 @@ export function createAttackTree(input: AttackTreeInput): string {
   }
 
   // Render all nodes with their shapes
-  for (const node of input.nodes) {
+  for (const node of nodes) {
     const id = sanitizeId(node.id);
     const label = sanitizeLabel(node.label);
     const type = node.type ?? (node.parent === null ? "goal" : "leaf");
@@ -70,7 +73,7 @@ export function createAttackTree(input: AttackTreeInput): string {
   }
 
   // Render edges
-  for (const node of input.nodes) {
+  for (const node of nodes) {
     if (node.parent !== null) {
       const parentId = sanitizeId(node.parent);
       const childId = sanitizeId(node.id);
@@ -79,7 +82,7 @@ export function createAttackTree(input: AttackTreeInput): string {
   }
 
   // Style mitigated nodes
-  const mitigatedNodes = input.nodes.filter((n) => n.mitigated);
+  const mitigatedNodes = nodes.filter((n) => n.mitigated);
   if (mitigatedNodes.length > 0) {
     lines.push("");
     for (const node of mitigatedNodes) {
@@ -91,7 +94,7 @@ export function createAttackTree(input: AttackTreeInput): string {
   lines.push(`  style ${sanitizeId(root.id)} fill:#7f1d1d,stroke:#ef4444,color:#fca5a5`);
 
   // Style high-likelihood unmitigated nodes
-  const criticalNodes = input.nodes.filter(
+  const criticalNodes = nodes.filter(
     (n) => n.likelihood === "high" && !n.mitigated && n.parent !== null
   );
   for (const node of criticalNodes) {
@@ -107,7 +110,7 @@ export function createAttackTree(input: AttackTreeInput): string {
 
   // Legend
   const mitigatedCount = mitigatedNodes.length;
-  const totalLeaves = input.nodes.filter((n) => !childMap.has(n.id) && n.parent !== null).length;
+  const totalLeaves = nodes.filter((n) => !childMap.has(n.id) && n.parent !== null).length;
   if (totalLeaves > 0) {
     parts.push(
       `\n**Coverage:** ${mitigatedCount}/${totalLeaves} leaf attacks mitigated` +
@@ -121,7 +124,7 @@ export function createAttackTree(input: AttackTreeInput): string {
 export const CREATE_ATTACK_TREE_TOOL = {
   name: "create_attack_tree",
   description:
-    "Create a STRIDE/MITRE ATT&CK attack tree. Attacker goal at root, AND/OR gates for branching conditions, leaf attack steps with mitigation status and likelihood. Returns validated Mermaid flowchart with security-aware styling.",
+    "Create a STRIDE/MITRE ATT&CK attack tree. Attacker goal at root, AND/OR gates for branching conditions, leaf attack steps with mitigation status and likelihood. Returns a Mermaid flowchart with security-aware styling.",
   inputSchema: {
     type: "object" as const,
     properties: {

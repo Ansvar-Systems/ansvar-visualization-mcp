@@ -5,6 +5,11 @@
  * multi-framework compliance overview.
  */
 import { escapeCell } from "../sanitize.js";
+import {
+  assertFiniteNumber,
+  assertMatrixDimensions,
+  assertNonEmptyArray,
+} from "./validation.js";
 
 export interface HeatmapInput {
   title?: string;
@@ -40,8 +45,18 @@ function formatValue(value: number, format?: string): string {
 }
 
 export function createHeatmapTable(input: HeatmapInput): string {
+  assertNonEmptyArray("rows", input.rows);
+  assertNonEmptyArray("columns", input.columns);
+  assertMatrixDimensions("values", input.values, input.rows.length, input.columns.length);
+
   const min = input.scale?.min ?? 0;
   const max = input.scale?.max ?? Math.max(...input.values.flat(), 1);
+  assertFiniteNumber("scale.min", min);
+  assertFiniteNumber("scale.max", max);
+  if (max <= min) {
+    throw new Error("scale.max must be greater than scale.min.");
+  }
+
   const parts: string[] = [];
 
   if (input.title) {
@@ -59,7 +74,7 @@ export function createHeatmapTable(input: HeatmapInput): string {
     const cells: string[] = [`**${escapeCell(input.rows[i])}**`];
 
     for (let j = 0; j < input.columns.length; j++) {
-      const val = rowValues[j] ?? 0;
+      const val = rowValues[j];
       const indicator = heatIndicator(val, min, max);
       cells.push(`${indicator} ${formatValue(val, input.format)}`);
     }
@@ -80,7 +95,7 @@ export function createHeatmapTable(input: HeatmapInput): string {
 export const CREATE_HEATMAP_TABLE_TOOL = {
   name: "create_heatmap_table",
   description:
-    "Create a color-coded heatmap table with values and indicators. Use for CVSS scoring, control coverage gaps, maturity heat maps, multi-framework compliance overview.",
+    "Create a color-coded heatmap table with values and indicators. Returns a Markdown heatmap table for CVSS scoring, control coverage gaps, maturity heat maps, and multi-framework compliance overviews.",
   inputSchema: {
     type: "object" as const,
     properties: {
