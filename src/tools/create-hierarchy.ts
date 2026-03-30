@@ -67,7 +67,7 @@ export const CREATE_HIERARCHY_TOOL = {
         properties: {
           id: { type: "string" },
           label: { type: "string" },
-          children: { type: "array", description: "Child nodes (same structure, recursive)" },
+          children: { type: "array", items: { type: "object" }, description: "Child nodes (same structure, recursive)" },
         },
         required: ["id", "label"],
       },
