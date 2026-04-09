@@ -6,6 +6,11 @@
  * and risk ID labeling.
  */
 import { escapeCell } from "../sanitize.js";
+import {
+  assertArrayLength,
+  assertNonEmptyArray,
+  assertNumberInRange,
+} from "./validation.js";
 
 export interface Risk {
   id: string;
@@ -33,8 +38,23 @@ function riskLevel(score: number): { level: string; indicator: string } {
 }
 
 export function createRiskMatrix(input: RiskMatrixInput): string {
+  assertNonEmptyArray("risks", input.risks);
+
   const likLabels = input.likelihood_labels ?? DEFAULT_LIKELIHOOD;
   const impLabels = input.impact_labels ?? DEFAULT_IMPACT;
+  assertArrayLength("likelihood_labels", likLabels, 5);
+  assertArrayLength("impact_labels", impLabels, 5);
+
+  const seenRiskIds = new Set<string>();
+  for (const risk of input.risks) {
+    if (seenRiskIds.has(risk.id)) {
+      throw new Error(`Duplicate risk ID: ${risk.id}`);
+    }
+    seenRiskIds.add(risk.id);
+    assertNumberInRange(`risk ${risk.id} likelihood`, risk.likelihood, 1, 5, true);
+    assertNumberInRange(`risk ${risk.id} impact`, risk.impact, 1, 5, true);
+  }
+
   const parts: string[] = [];
 
   if (input.title) {
@@ -53,9 +73,7 @@ export function createRiskMatrix(input: RiskMatrixInput): string {
   // Build risk placement map: (likelihood, impact) → risk IDs
   const placement = new Map<string, string[]>();
   for (const risk of input.risks) {
-    const lik = Math.min(Math.max(risk.likelihood, 1), 5);
-    const imp = Math.min(Math.max(risk.impact, 1), 5);
-    const key = `${lik}-${imp}`;
+    const key = `${risk.likelihood}-${risk.impact}`;
     const list = placement.get(key) ?? [];
     list.push(risk.id);
     placement.set(key, list);
@@ -113,11 +131,15 @@ export const CREATE_RISK_MATRIX_TOOL = {
       likelihood_labels: {
         type: "array",
         items: { type: "string" },
+        minItems: 5,
+        maxItems: 5,
         description: "5 labels from lowest to highest (default: Rare → Almost Certain)",
       },
       impact_labels: {
         type: "array",
         items: { type: "string" },
+        minItems: 5,
+        maxItems: 5,
         description: "5 labels from lowest to highest (default: Negligible → Critical)",
       },
       risks: {

@@ -6,6 +6,7 @@
  * a structured table and a Mermaid flowchart showing the mapping graph.
  */
 import { escapeCell, sanitizeId, sanitizeLabel, mermaidBlock } from "../sanitize.js";
+import { assertNonEmptyArray, assertReferencesExist, assertUniqueIds } from "./validation.js";
 
 export interface RegArticle {
   id: string;
@@ -40,6 +41,27 @@ const GAP_INDICATORS: Record<string, string> = {
 };
 
 export function createRegulatoryMapping(input: RegulatoryMappingInput): string {
+  assertNonEmptyArray("articles", input.articles);
+  assertNonEmptyArray("controls", input.controls);
+  assertNonEmptyArray("mappings", input.mappings);
+  assertUniqueIds("articles", input.articles.map((article) => article.id));
+  assertUniqueIds("controls", input.controls.map((control) => control.id));
+
+  const articleIds = new Set(input.articles.map((article) => article.id));
+  const controlIds = new Set(input.controls.map((control) => control.id));
+  assertReferencesExist(
+    "Regulatory mapping article",
+    input.mappings.map((mapping) => mapping.article),
+    articleIds,
+    "article"
+  );
+  assertReferencesExist(
+    "Regulatory mapping control",
+    input.mappings.map((mapping) => mapping.control),
+    controlIds,
+    "control"
+  );
+
   const parts: string[] = [];
   if (input.title) {
     parts.push(`### ${input.title}\n`);

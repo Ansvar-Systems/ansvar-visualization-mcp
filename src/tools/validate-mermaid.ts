@@ -9,28 +9,64 @@
  * - Semicolons instead of newlines
  * - "graph" instead of "flowchart"
  */
+import { parseMermaid } from "./mermaid-parser.js";
 
 export interface ValidateMermaidInput {
   mermaid: string;
 }
 
 interface ValidationResult {
-  valid: boolean;
   fixed: string;
   changes: string[];
   warnings: string[];
 }
 
-export function validateAndFixMermaid(input: ValidateMermaidInput): string {
+function formatParserError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.trim();
+  }
+  return String(error).trim();
+}
+
+export async function validateAndFixMermaid(input: ValidateMermaidInput): Promise<string> {
   const result = validate(input.mermaid);
+  let parserResult:
+    | { valid: true; diagramType: string }
+    | { valid: false; error: string };
+
+  try {
+    const parsed = await parseMermaid(result.fixed);
+    parserResult = { valid: true, diagramType: parsed.diagramType };
+  } catch (error) {
+    parserResult = { valid: false, error: formatParserError(error) };
+  }
 
   const parts: string[] = [];
 
-  if (result.valid && result.changes.length === 0) {
-    parts.push("**Status:** Valid Mermaid syntax. No changes needed.\n");
-    parts.push("```mermaid\n" + result.fixed + "\n```");
+  if (parserResult.valid) {
+    parts.push(
+      `**Status:** ${
+        result.changes.length > 0
+          ? "Parser validation passed after heuristic fixes."
+          : "Parser validation passed."
+      }\n`
+    );
+    parts.push(`**Diagram Type:** \`${parserResult.diagramType}\``);
+    if (result.changes.length > 0) {
+      parts.push("\n**Changes applied:**\n");
+      for (const change of result.changes) {
+        parts.push(`- ${change}`);
+      }
+    }
+    if (result.warnings.length > 0) {
+      parts.push("\n**Warnings:**\n");
+      for (const warn of result.warnings) {
+        parts.push(`- ${warn}`);
+      }
+    }
+    parts.push("\n```mermaid\n" + result.fixed + "\n```");
   } else if (result.changes.length > 0) {
-    parts.push(`**Status:** ${result.valid ? "Valid after fixes" : "Fixed with best effort"}.\n`);
+    parts.push("**Status:** Parser validation failed after heuristic fixes.\n");
     parts.push("**Changes applied:**\n");
     for (const change of result.changes) {
       parts.push(`- ${change}`);
@@ -41,12 +77,15 @@ export function validateAndFixMermaid(input: ValidateMermaidInput): string {
         parts.push(`- ${warn}`);
       }
     }
-    parts.push("\n```mermaid\n" + result.fixed + "\n```");
+    parts.push(`\n**Parser Error:** ${parserResult.error}`);
+    parts.push("\n**Fixed Candidate:**\n");
+    parts.push("```mermaid\n" + result.fixed + "\n```");
   } else {
-    parts.push("**Status:** Could not auto-fix. Manual correction needed.\n");
+    parts.push("**Status:** Parser validation failed. Manual correction required.\n");
     for (const warn of result.warnings) {
       parts.push(`- ${warn}`);
     }
+    parts.push(`\n**Parser Error:** ${parserResult.error}`);
     parts.push("\n**Original:**\n```\n" + input.mermaid + "\n```");
   }
 
@@ -102,6 +141,54 @@ function validate(raw: string): ValidationResult {
     }
   }
 
+  const normalizedFirstLine = code.split("\n")[0].trim();
+  if (normalizedFirstLine.startsWith("flowchart")) {
+    if (/\s--\s/.test(code)) {
+      warnings.push("Found '--' edges without arrowheads; use '-->' or another complete Mermaid edge operator");
+    }
+
+    const suspicious = code
+      .split("\n")
+      .slice(1)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .filter((line) => {
+        if (/^(%%|subgraph\b|end\b|classDef\b|class\b|style\b|linkStyle\b|click\b)/.test(line)) {
+          return false;
+        }
+        if (/(-->|==>|-.->|--x|--o|<-->|---)/.test(line)) {
+          return false;
+        }
+        if (/^[A-Za-z0-9_]+\s*(\[\(|\[\[|\[|\(|\{)/.test(line)) {
+          return false;
+        }
+        return true;
+      });
+    if (suspicious.length > 0) {
+      warnings.push(`Unrecognized flowchart line(s): ${suspicious.slice(0, 3).join(" | ")}`);
+    }
+  }
+
+  if (normalizedFirstLine.startsWith("sequenceDiagram")) {
+    const suspicious = code
+      .split("\n")
+      .slice(1)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .filter((line) => {
+        if (/^(%%|participant\b|actor\b|Note\b|loop\b|end\b|alt\b|else\b|opt\b|par\b|and\b|rect\b|break\b|critical\b|activate\b|deactivate\b|autonumber\b|title\b|destroy\b)/.test(line)) {
+          return false;
+        }
+        if (/(->>|-->>|-->>\+|-->>-|-\))/.test(line)) {
+          return false;
+        }
+        return true;
+      });
+    if (suspicious.length > 0) {
+      warnings.push(`Unrecognized sequence line(s): ${suspicious.slice(0, 3).join(" | ")}`);
+    }
+  }
+
   // Fix unbalanced quotes in labels
   const quoteCount = (code.match(/"/g) || []).length;
   if (quoteCount % 2 !== 0) {
@@ -127,14 +214,13 @@ function validate(raw: string): ValidationResult {
     return `${id}[${id}]`;
   });
 
-  const valid = warnings.length === 0;
-  return { valid, fixed: code, changes, warnings };
+  return { fixed: code, changes, warnings };
 }
 
 export const VALIDATE_MERMAID_TOOL = {
   name: "validate_and_fix_mermaid",
   description:
-    "Validate Mermaid syntax and attempt auto-correction of common errors (missing declarations, semicolons, deprecated syntax, unbalanced brackets). Returns fixed code with a list of changes applied.",
+    "Validate Mermaid with the official Mermaid parser, after applying best-effort fixes for common issues such as missing declarations, semicolons, deprecated syntax, and unbalanced brackets. Returns parser results, warnings, and any changes applied.",
   inputSchema: {
     type: "object" as const,
     properties: {

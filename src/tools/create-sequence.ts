@@ -4,7 +4,13 @@
  * Maps to compliance reporting flows, incident notification timelines,
  * API call sequences, and authentication flows.
  */
-import { sanitizeLabel, mermaidBlock } from "../sanitize.js";
+import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import {
+  assertNonEmptyArray,
+  assertNumberInRange,
+  assertReferencesExist,
+  assertUniqueIds,
+} from "./validation.js";
 
 export interface SeqParticipant {
   id: string;
@@ -56,6 +62,34 @@ const ARROW_TYPES: Record<string, string> = {
 };
 
 export function createSequence(input: SequenceInput): string {
+  assertNonEmptyArray("participants", input.participants);
+  assertNonEmptyArray("messages", input.messages);
+  assertUniqueIds("participants", input.participants.map((participant) => participant.id));
+
+  const participantIds = new Set(input.participants.map((participant) => participant.id));
+  assertReferencesExist(
+    "Sequence message",
+    input.messages.flatMap((message) => [message.from, message.to]),
+    participantIds,
+    "participant"
+  );
+
+  for (const note of input.notes ?? []) {
+    const targets = Array.isArray(note.over) ? note.over : [note.over];
+    assertReferencesExist("Sequence note", targets, participantIds, "participant");
+  }
+
+  for (const loop of input.loops ?? []) {
+    assertNumberInRange("loop.start_index", loop.start_index, 0, input.messages.length - 1, true);
+    assertNumberInRange("loop.end_index", loop.end_index, 0, input.messages.length - 1, true);
+    if (loop.start_index > loop.end_index) {
+      throw new Error("loop.start_index must be less than or equal to loop.end_index.");
+    }
+  }
+
+  const participantIdMap = new Map(
+    input.participants.map((participant) => [participant.id, sanitizeId(participant.id)])
+  );
   const lines: string[] = ["sequenceDiagram"];
 
   if (input.autonumber) {
@@ -65,7 +99,7 @@ export function createSequence(input: SequenceInput): string {
   // Participants
   for (const p of input.participants) {
     const keyword = PARTICIPANT_KEYWORDS[p.type ?? "participant"] ?? "participant";
-    lines.push(`  ${keyword} ${p.id} as ${sanitizeLabel(p.label)}`);
+    lines.push(`  ${keyword} ${participantIdMap.get(p.id)!} as ${sanitizeLabel(p.label)}`);
   }
 
   // Build message list with interleaved notes and loops
@@ -76,13 +110,6 @@ export function createSequence(input: SequenceInput): string {
     loopEnds.add(loop.end_index);
   }
 
-  // Notes keyed by "after message index"
-  const notesByIndex = new Map<number, SeqNote[]>();
-  for (const note of input.notes ?? []) {
-    // Notes without explicit index go at the end
-    // For now, notes are appended after all messages
-  }
-
   for (let i = 0; i < input.messages.length; i++) {
     const loopLabel = loopStarts.get(i);
     if (loopLabel) {
@@ -91,7 +118,9 @@ export function createSequence(input: SequenceInput): string {
 
     const msg = input.messages[i];
     const arrow = ARROW_TYPES[msg.type ?? "sync"] ?? "->>";
-    lines.push(`  ${msg.from}${arrow}${msg.to}: ${sanitizeLabel(msg.label)}`);
+    lines.push(
+      `  ${participantIdMap.get(msg.from)!}${arrow}${participantIdMap.get(msg.to)!}: ${sanitizeLabel(msg.label)}`
+    );
 
     if (loopEnds.has(i)) {
       lines.push("  end");
@@ -100,7 +129,9 @@ export function createSequence(input: SequenceInput): string {
 
   // Append notes at the end
   for (const note of input.notes ?? []) {
-    const targets = Array.isArray(note.over) ? note.over.join(",") : note.over;
+    const targets = Array.isArray(note.over)
+      ? note.over.map((target) => participantIdMap.get(target)!).join(",")
+      : participantIdMap.get(note.over)!;
     const pos = note.position ?? "over";
     if (pos === "over") {
       lines.push(`  Note over ${targets}: ${sanitizeLabel(note.text)}`);
@@ -123,7 +154,7 @@ export function createSequence(input: SequenceInput): string {
 export const CREATE_SEQUENCE_TOOL = {
   name: "create_sequence",
   description:
-    "Create a sequence diagram showing interactions between participants with typed messages (sync, async, reply), loops, and notes. Returns validated Mermaid sequenceDiagram.",
+    "Create a sequence diagram showing interactions between participants with typed messages (sync, async, reply), loops, and notes. Returns a Mermaid sequenceDiagram.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -159,7 +190,13 @@ export const CREATE_SEQUENCE_TOOL = {
         items: {
           type: "object",
           properties: {
-            over: { description: "Participant ID(s)" },
+            over: {
+              oneOf: [
+                { type: "string" },
+                { type: "array", items: { type: "string" } },
+              ],
+              description: "Participant ID or IDs",
+            },
             text: { type: "string" },
             position: { type: "string", enum: ["left", "right", "over"] },
           },

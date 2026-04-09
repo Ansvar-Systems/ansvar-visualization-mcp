@@ -5,6 +5,7 @@
  * audit schedules, regulation transition periods.
  */
 import { sanitizeLabel, mermaidBlock } from "../sanitize.js";
+import { assertNonEmptyArray } from "./validation.js";
 
 export interface TimelineTask {
   name: string;
@@ -25,6 +26,11 @@ export interface TimelineInput {
 }
 
 export function createTimeline(input: TimelineInput): string {
+  assertNonEmptyArray("sections", input.sections);
+  for (const section of input.sections) {
+    assertNonEmptyArray(`section ${section.name} tasks`, section.tasks);
+  }
+
   const lines: string[] = ["gantt"];
   lines.push(`  title ${sanitizeLabel(input.title)}`);
   lines.push(`  dateFormat ${input.date_format ?? "YYYY-MM-DD"}`);
@@ -44,7 +50,7 @@ export function createTimeline(input: TimelineInput): string {
 export const CREATE_TIMELINE_TOOL = {
   name: "create_timeline",
   description:
-    "Create a Gantt-style timeline with sections and tasks. Use for implementation roadmaps, compliance deadlines, incident timelines, audit schedules. Returns validated Mermaid gantt.",
+    "Create a Gantt-style timeline with sections and tasks. Use for implementation roadmaps, compliance deadlines, incident timelines, audit schedules. Returns a Mermaid gantt.",
   inputSchema: {
     type: "object" as const,
     properties: {

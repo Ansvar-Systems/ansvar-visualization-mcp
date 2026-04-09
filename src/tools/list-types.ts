@@ -22,7 +22,7 @@ const CATALOG = {
       tool: "create_sequence",
       name: "Sequence Diagram",
       when: "Multi-party interactions, API flows, incident reporting timelines, authentication flows",
-      output: "Mermaid sequenceDiagram",
+      output: "Mermaid sequenceDiagram with sanitized participant IDs",
     },
     {
       tool: "create_hierarchy",
@@ -103,8 +103,8 @@ const CATALOG = {
     {
       tool: "validate_and_fix_mermaid",
       name: "Validate & Fix Mermaid",
-      when: "Check Mermaid syntax, auto-correct common errors before rendering",
-      output: "Validated/fixed Mermaid code with change log",
+      when: "Heuristically check Mermaid code and apply best-effort corrections before rendering",
+      output: "Mermaid code with warnings and change log",
     },
     {
       tool: "list_available_diagram_types",

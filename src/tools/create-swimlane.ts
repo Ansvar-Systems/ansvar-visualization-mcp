@@ -6,6 +6,7 @@
  * Maps to TPRM workflows, DORA responsibility chains, incident response.
  */
 import { sanitizeLabel, sanitizeId, mermaidBlock } from "../sanitize.js";
+import { assertNonEmptyArray, assertReferencesExist, assertUniqueIds } from "./validation.js";
 
 export interface SwimLane {
   id: string;
@@ -34,6 +35,22 @@ const STEP_SHAPES: Record<string, [string, string]> = {
 };
 
 export function createSwimlane(input: SwimlaneInput): string {
+  assertNonEmptyArray("lanes", input.lanes);
+  assertNonEmptyArray("steps", input.steps);
+  assertUniqueIds("lanes", input.lanes.map((lane) => lane.id));
+  assertUniqueIds("steps", input.steps.map((step) => step.id));
+
+  const laneIds = new Set(input.lanes.map((lane) => lane.id));
+  assertReferencesExist("Swimlane step", input.steps.map((step) => step.lane), laneIds, "lane");
+
+  const stepIds = new Set(input.steps.map((step) => step.id));
+  assertReferencesExist(
+    "Swimlane transition",
+    input.steps.flatMap((step) => step.next ?? []),
+    stepIds,
+    "step"
+  );
+
   const lines: string[] = ["flowchart LR"];
 
   // Group steps by lane
@@ -84,7 +101,7 @@ export function createSwimlane(input: SwimlaneInput): string {
 export const CREATE_SWIMLANE_TOOL = {
   name: "create_swimlane",
   description:
-    "Create a swimlane diagram showing multi-party responsibilities. Each lane is a responsible party; steps flow within and across lanes with handoff arrows. Returns validated Mermaid flowchart.",
+    "Create a swimlane diagram showing multi-party responsibilities. Each lane is a responsible party; steps flow within and across lanes with handoff arrows. Returns a Mermaid flowchart.",
   inputSchema: {
     type: "object" as const,
     properties: {

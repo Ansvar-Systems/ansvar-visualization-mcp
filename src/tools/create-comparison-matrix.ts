@@ -5,6 +5,12 @@
  * Different from comparison_table: this one has weighted scoring with totals.
  */
 import { escapeCell } from "../sanitize.js";
+import {
+  assertNonEmptyArray,
+  assertNumberInRange,
+  assertReferencesExist,
+  assertUniqueIds,
+} from "./validation.js";
 
 export interface MatrixOption {
   id: string;
@@ -31,6 +37,43 @@ export interface ComparisonMatrixInput {
 }
 
 export function createComparisonMatrix(input: ComparisonMatrixInput): string {
+  assertNonEmptyArray("options", input.options);
+  assertNonEmptyArray("criteria", input.criteria);
+  assertNonEmptyArray("scores", input.scores);
+  assertUniqueIds("options", input.options.map((option) => option.id));
+
+  const criterionNames = input.criteria.map((criterion) => criterion.name);
+  if (criterionNames.length !== new Set(criterionNames).size) {
+    throw new Error("Comparison matrix criteria must have unique names.");
+  }
+
+  const optionIds = new Set(input.options.map((option) => option.id));
+  const criteria = new Set(criterionNames);
+  assertReferencesExist(
+    "Comparison matrix score option",
+    input.scores.map((score) => score.option),
+    optionIds,
+    "option"
+  );
+  assertReferencesExist(
+    "Comparison matrix score criterion",
+    input.scores.map((score) => score.criterion),
+    criteria,
+    "criterion"
+  );
+
+  for (const criterion of input.criteria) {
+    assertNumberInRange(`criterion ${criterion.name} weight`, criterion.weight, 0, 1);
+  }
+  for (const score of input.scores) {
+    assertNumberInRange(
+      `score ${score.option}/${score.criterion}`,
+      score.score,
+      0,
+      10
+    );
+  }
+
   const parts: string[] = [];
   if (input.title) {
     parts.push(`### ${input.title}\n`);

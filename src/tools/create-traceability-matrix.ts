@@ -6,6 +6,7 @@
  * mangle — this tool guarantees correct structure.
  */
 import { escapeCell } from "../sanitize.js";
+import { assertNonEmptyArray, assertReferencesExist, assertUniqueIds } from "./validation.js";
 
 export interface TraceItem {
   id: string;
@@ -16,7 +17,7 @@ export interface TraceMapping {
   requirement: string;
   control: string;
   evidence?: string;
-  status: "met" | "partial" | "gap" | "not-applicable";
+  status: "met" | "covered" | "partial" | "gap" | "not-applicable";
 }
 
 export interface TraceabilityInput {
@@ -35,6 +36,27 @@ const STATUS_INDICATORS: Record<string, string> = {
 };
 
 export function createTraceabilityMatrix(input: TraceabilityInput): string {
+  assertNonEmptyArray("requirements", input.requirements);
+  assertNonEmptyArray("controls", input.controls);
+  assertNonEmptyArray("mappings", input.mappings);
+  assertUniqueIds("requirements", input.requirements.map((requirement) => requirement.id));
+  assertUniqueIds("controls", input.controls.map((control) => control.id));
+
+  const requirementIds = new Set(input.requirements.map((requirement) => requirement.id));
+  const controlIds = new Set(input.controls.map((control) => control.id));
+  assertReferencesExist(
+    "Traceability mapping requirement",
+    input.mappings.map((mapping) => mapping.requirement),
+    requirementIds,
+    "requirement"
+  );
+  assertReferencesExist(
+    "Traceability mapping control",
+    input.mappings.map((mapping) => mapping.control),
+    controlIds,
+    "control"
+  );
+
   const parts: string[] = [];
   if (input.title) {
     parts.push(`### ${input.title}\n`);
@@ -79,7 +101,7 @@ export function createTraceabilityMatrix(input: TraceabilityInput): string {
 
   // Coverage summary
   const total = input.mappings.length;
-  const met = input.mappings.filter((m) => m.status === "met").length;
+  const met = input.mappings.filter((m) => m.status === "met" || m.status === "covered").length;
   const partial = input.mappings.filter((m) => m.status === "partial").length;
   const gaps = input.mappings.filter((m) => m.status === "gap").length;
   const na = input.mappings.filter((m) => m.status === "not-applicable").length;
